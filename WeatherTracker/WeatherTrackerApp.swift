@@ -10,23 +10,14 @@ import SwiftData
 
 @main
 struct WeatherTrackerApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
+    let localStorage = LocalDataManager()
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            HomeView()
+                .onAppear(){
+                    print("APP start.. getting settings")
+                    print(localStorage.getSavedCityName() ?? "")
+                }
         }
-        .modelContainer(sharedModelContainer)
     }
 }
