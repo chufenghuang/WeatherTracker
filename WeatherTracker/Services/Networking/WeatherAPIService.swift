@@ -11,6 +11,7 @@ import Foundation
 
 protocol WeatherAPIServiceProtocol {
     func fetchCurrentWeather(for city: String) async throws -> WeatherResponse
+    func fetchAstronomy(for city: String) async throws -> AstronomyResponse
 }
 
 // MARK: - Service Implementation
@@ -66,11 +67,56 @@ class WeatherAPIService: WeatherAPIServiceProtocol {
             throw WeatherAPIError.decodingError(decodingError)
         }
     }
+    
+    func fetchAstronomy(for city: String) async throws -> AstronomyResponse {
+        guard let url = makeAstronomyURL(for: city) else {
+            throw WeatherAPIError.invalidURL
+        }
+
+        do {
+            let (data, response) = try await session.data(from: url)
+
+            // Print response for debugging
+            if let httpResponse = response as? HTTPURLResponse {
+                print("The httpResponse.statusCode is \(httpResponse.statusCode)")
+
+                // Stop execution immediately if status code is 400**
+                if httpResponse.statusCode == 400 {
+                    throw WeatherAPIError.invalidCity
+                }
+                // Handle other server errors (non-200 responses)
+                if !(200...299).contains(httpResponse.statusCode) {
+                    throw WeatherAPIError.requestFailed(statusCode: httpResponse.statusCode)
+                }
+            }
+
+            return try JSONDecoder().decode(AstronomyResponse.self, from: data)
+
+        } catch let error as URLError {
+            if error.code == .notConnectedToInternet {
+                throw WeatherAPIError.noInternet
+            } else {
+                throw WeatherAPIError.unknown
+            }
+        } catch let decodingError {
+            throw WeatherAPIError.decodingError(decodingError)
+        }
+    }
+    
 
     // MARK: - Helper Methods
     // documentation: https://www.weatherapi.com/api-explorer.aspx
     private func makeCurrentWeatherURL(for city: String) -> URL? {
         var urlComponents = URLComponents(string: "https://api.weatherapi.com/v1/current.json")
+        urlComponents?.queryItems = [
+            URLQueryItem(name: "key", value: apiKey),
+            URLQueryItem(name: "q", value: city)
+        ]
+        return urlComponents?.url
+    }
+    
+    private func makeAstronomyURL(for city: String) -> URL? {
+        var urlComponents = URLComponents(string: "https://api.weatherapi.com/v1/astronomy.json")
         urlComponents?.queryItems = [
             URLQueryItem(name: "key", value: apiKey),
             URLQueryItem(name: "q", value: city)

@@ -7,91 +7,131 @@
 
 import Foundation
 import SwiftUI
+import Combine
 @MainActor
-class HomeViewModel: ObservableObject{
-    // MARK: - Published Properties
-    @Published var cityName: String = ""          // Bound to your search text field or displayed city name
-    @Published var temperature: String = ""       // E.g., "25°"
-    @Published var conditionText: String = ""     // E.g., "Sunny"
-    @Published var iconURL: String = ""           // E.g., "https://cdn.weatherapi.com/..."
-    @Published var humidity: String = ""          // E.g., "60%"
-    @Published var uvIndex: String = ""           // E.g., "5"
-    @Published var feelsLike: String = ""        // E.g., "27°"
+
+class HomeViewModel: ObservableObject {
+    @Published var cityName: String? = nil
+    @Published var temperature: String? = nil
+    @Published var humidity: String? = nil
+    @Published var uv: String? = nil
+    @Published var feelslike: String? = nil
+    @Published var iconUrl: String? = nil
+    @Published var errorMessage: String? = nil
+    @Published var didSelectCity: Bool = false
+    @Published var showSearchResultCard: Bool = false
     
-    @Published var errorMessage: String? = nil    // For showing any errors in the UI
-    
-    // MARK: - Private Dependencies
+    //Variables for astronomy
+    @Published var sunrise: String? = nil
+    @Published var sunset: String? = nil
+
     private let weatherService: WeatherAPIServiceProtocol
     private let localStorage: LocalStorageProtocol
 
-    // MARK: - Initializer
     init(weatherService: WeatherAPIServiceProtocol = WeatherAPIService(),
          localStorage: LocalStorageProtocol = LocalDataManager()) {
         self.weatherService = weatherService
         self.localStorage = localStorage
-        
-        // Attempt to load saved city right away
-        loadSavedCityOnInit()
-    }
-    
-    // MARK: - Public Methods
-
-    /// Load weather for the current cityName (user typed or loaded from storage).
-    func loadWeather() {
-        // In SwiftUI, prefer using async/await or a Task:
-        Task {
-            await fetchWeather(for: cityName)
-        }
-    }
-    
-    /// Called when the user selects a new city from a search result.
-    /// - Parameter newCity: The new city the user selected (e.g., "Chicago").
-    func selectCity(_ newCity: String) {
-        cityName = newCity
-        localStorage.saveCityName(newCity)
-        loadWeather()  // fetch updated weather
+        loadSavedCityOnInit() // Load saved city when ViewModel is created
     }
 
-    // MARK: - Private Helpers
-    
-    /// Loads the previously saved city from local storage (if any).
+    /// Loads the saved city from local storage and fetches weather
     private func loadSavedCityOnInit() {
-        if let savedCity = localStorage.getSavedCityName() {
-            cityName = savedCity
-            // Optionally auto-fetch weather
-            loadWeather()
-        } else {
-            // If there's no saved city, you might display a placeholder or
-            // rely on the user to type a city in the search bar.
-            cityName = ""
+        if let savedCity = localStorage.getSavedCityName(), !savedCity.isEmpty {
+            Task {
+                await fetchWeather(targetCityName: savedCity)
+                didSelectCity = true
+            }
         }
     }
-    
-    /// Actually calls the WeatherAPIService to fetch current weather.
-    private func fetchWeather(for city: String) async {
-        // Clear any old error
-        self.errorMessage = nil
+
+    /// Fetch weather for the given city
+    func fetchWeather(targetCityName: String) async {
+        DispatchQueue.main.async {
+            self.errorMessage = nil
+            self.showSearchResultCard = false
+        }
+
         do {
-            let response = try await weatherService.fetchCurrentWeather(for: city)
-            // Update published properties directly
-            updatePublishedProperties(from: response)
+            let response = try await weatherService.fetchCurrentWeather(for: targetCityName)
+
+            DispatchQueue.main.async {
+                self.cityName = response.location.name
+                self.temperature = "\(Int(response.current.temp_c))"
+                self.humidity = "\(response.current.humidity)%"
+                self.uv = "\(response.current.uv)"
+                self.feelslike = "\(response.current.feelslike_c)"
+
+                let rawIcon = response.current.condition.icon
+                self.iconUrl = rawIcon.hasPrefix("//") ? "https:" + rawIcon : rawIcon
+
+                self.showSearchResultCard = true
+            }
+        } catch let error as WeatherAPIError {
+            DispatchQueue.main.async {
+                self.errorMessage = error.localizedDescription
+                self.showSearchResultCard = false
+            }
         } catch {
-            errorMessage = "Error fetching weather: \(error)"
+            DispatchQueue.main.async {
+                self.errorMessage = "Unexpected error. Please try again."
+                self.showSearchResultCard = false
+            }
         }
     }
     
-    /// Updates @Published properties from a WeatherResponse.
-    private func updatePublishedProperties(from response: WeatherResponse) {
-        // The city name from the API might differ from user input.
-        cityName = response.location.name
-        
-        let current = response.current
-        temperature = "\(Int(current.temp_c))°"
-        conditionText = current.condition.text
-        iconURL = "https:\(current.condition.icon)"  // WeatherAPI icon often starts with `//`
-        
-        humidity = "\(current.humidity)%"
-        uvIndex = "\(Int(current.uv))"
-        feelsLike = "\(Int(current.feelslike_c))°"
+    func fetchAstronomy(targetCityName: String) async {
+        DispatchQueue.main.async {
+            self.errorMessage = nil
+//            self.showSearchResultCard = false
+        }
+
+        do {
+            let response = try await weatherService.fetchAstronomy(for: targetCityName)
+
+            DispatchQueue.main.async {
+                self.sunrise = response.astronomy.astro.sunrise
+                self.sunset = response.astronomy.astro.sunset
+
+//                self.showSearchResultCard = true
+            }
+        } catch let error as WeatherAPIError {
+            DispatchQueue.main.async {
+                self.errorMessage = error.localizedDescription
+                self.showSearchResultCard = false
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.errorMessage = "Unexpected error. Please try again."
+                self.showSearchResultCard = false
+            }
+        }
+    }
+
+    /// Select a city and save it
+    func selectCity(_ city: String) {
+        localStorage.saveCityName(city)
+        cityName = city
+        didSelectCity = true
+        showSearchResultCard = false
+    }
+
+    /// Clear search results
+    func clearSearch() {
+        showSearchResultCard = false
+        didSelectCity = false
+    }
+    
+    func setDidSelectCityValue(newValue:Bool){
+        didSelectCity = newValue
+    }
+    
+    func setShowSearchResultCardValue(newValue:Bool){
+        showSearchResultCard = newValue
+    }
+    
+    func saveCityNameToLocalStorage(newCityName:String){
+        cityName = newCityName
+        localStorage.saveCityName(newCityName)
     }
 }

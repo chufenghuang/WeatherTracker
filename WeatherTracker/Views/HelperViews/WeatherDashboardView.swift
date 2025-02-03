@@ -16,6 +16,9 @@ struct WeatherDashboardView: View {
     let feelsLike: String
     let iconUrl: String
     
+    let sunrise: String
+    let sunset: String
+    
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 30){
@@ -96,7 +99,7 @@ struct WeatherDashboardView: View {
                     Text("Feels Like")
                         .font(.custom("Poppins", size: 12))
                         .foregroundColor(Color("text_third_gray"))
-                    Text(feelsLike)
+                    Text("\(feelsLike)°")
                         .font(.custom("Poppins", size: 18))
                         .foregroundColor(Color("text_secondry_gray"))
                 }
@@ -107,11 +110,35 @@ struct WeatherDashboardView: View {
             .padding(.horizontal, 8)
             .background(Color("card_background"))
             .cornerRadius(16)
+            
+            HStack{
+                VStack(spacing: 8) {
+                    Text("Sunrise")
+                        .font(.custom("Poppins", size: 12))
+                        .foregroundColor(Color("text_third_gray"))
+                    Text(sunrise)
+                        .font(.custom("Poppins", size: 18))
+                        .foregroundColor(Color("text_secondry_gray"))
+                }
+//                .frame(width: 60)
+                Spacer()
+                VStack(spacing: 8) {
+                    Text("Sunset")
+                        .font(.custom("Poppins", size: 12))
+                        .foregroundColor(Color("text_third_gray"))
+                    Text(sunset)
+                        .font(.custom("Poppins", size: 18))
+                        .foregroundColor(Color("text_secondry_gray"))
+                }
+//                .frame(width: 60)
+            }
+            .padding()
+            .frame(width: 280)
         }
         .padding()
     }
 }
 
 #Preview {
-    WeatherDashboardView(cityName: "Chicago", temperature: "19", humidity: "20%", uvIndex: "4", feelsLike: "34°", iconUrl: "https://cdn.weatherapi.com/weather/64x64/day/116.png")
+    WeatherDashboardView(cityName: "Chicago", temperature: "19", humidity: "20%", uvIndex: "4", feelsLike: "34", iconUrl: "https://cdn.weatherapi.com/weather/64x64/day/116.png", sunrise: "07:36 AM", sunset: "04:54 PM")
 }
